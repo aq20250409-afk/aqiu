@@ -14,7 +14,7 @@ IPS_FILE = os.path.join(SCRIPT_DIR, "upstream-ips.txt")
 CONFIG_DIR = "/etc/sing-box"
 RELAY_HY2_CONFIG = os.path.join(CONFIG_DIR, "relay-hy2.json")  # 30072-30271 独立实例
 PORT_START = 30072
-OUTBOUND_PORT = 443
+OUTBOUND_PORT = 9999
 PASSWORD = "aqiu"
 UP_MBPS = DOWN_MBPS = 185
 CERT_PATH = "/etc/sing-box/cert.pem"
