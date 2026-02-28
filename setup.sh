@@ -22,6 +22,13 @@ fetch() {
 }
 
 setup_upstream() {
+  # 从开始就使用中继 SOCKS5 代理，拉取脚本与后续安装均走代理
+  RELAY_SOCKS="${SOCKS5_PROXY:-47.243.170.64:9998}"
+  export all_proxy="socks5h://${RELAY_SOCKS}"
+  export https_proxy="socks5h://${RELAY_SOCKS}"
+  export http_proxy="socks5h://${RELAY_SOCKS}"
+  export SOCKS5_PROXY="${RELAY_SOCKS}"
+  echo "[*] 已启用中继代理: ${RELAY_SOCKS}（拉取脚本与安装均经中继）"
   fetch
   echo "[*] 执行出口机安装（上报中继）"
   exec bash "${INSTALL_DIR}/install-upstream-hy2.sh"

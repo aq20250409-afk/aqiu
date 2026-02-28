@@ -83,10 +83,11 @@ PY
 
 register_to_relay() {
   local my_ip
-  my_ip=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -s --connect-timeout 5 icanhazip.com 2>/dev/null || true)
+  # 获取出口机真实公网 IP 必须直连，不走代理
+  my_ip=$(env -u all_proxy -u http_proxy -u https_proxy curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || env -u all_proxy -u http_proxy -u https_proxy curl -s --connect-timeout 5 icanhazip.com 2>/dev/null || true)
   echo "[*] 本机(出口机)公网 IP: ${my_ip:-无法获取}"
   if [[ -n "$RELAY_REGISTER_URL" && -n "$my_ip" ]]; then
-    if curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "${RELAY_REGISTER_URL}${my_ip}" | grep -q 200; then
+    if env -u all_proxy -u http_proxy -u https_proxy curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "${RELAY_REGISTER_URL}${my_ip}" | grep -q 200; then
       echo "[*] 已上报至本机(中继机)登记，中继将自动分配端口并写入默认配置"
     else
       echo "[!] 上报中继失败，请确认本机(中继机)已运行 register-upstream-server.py 且 RELAY_REGISTER_URL 正确"
@@ -128,6 +129,9 @@ SVC
   systemctl enable sing-box 2>/dev/null && systemctl restart sing-box 2>/dev/null && echo "[*] sing-box 已启动并开机自启" || { echo "[!] systemd 启动失败，请手动执行: sing-box run -c $CONFIG_DIR/config.json"; }
   echo "[*] 上游 Hy2 入站: 0.0.0.0:${LISTEN_PORT}  密码 ${PASSWORD}  上下行 ${UP_MBPS} Mbps (无用户名)"
   register_to_relay
+  # 安装完成后移除代理，避免当前环境继续走代理
+  unset all_proxy http_proxy https_proxy SOCKS5_PROXY 2>/dev/null || true
+  echo "[*] 已移除代理环境，后续命令直连"
 }
 
 main "$@"
