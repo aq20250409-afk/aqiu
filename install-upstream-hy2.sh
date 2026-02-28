@@ -95,9 +95,29 @@ main() {
   generate_config
   chown sing-box:sing-box "$CONFIG_DIR/config.json" 2>/dev/null || true
   sing-box check -c "$CONFIG_DIR/config.json" || { echo "[!] 配置校验失败"; exit 1; }
-  systemctl enable sing-box
-  systemctl restart sing-box
-  echo "[*] sing-box 已启动并开机自启"
+  # 若无 systemd 单元则创建，再 enable/restart
+  if ! systemctl cat sing-box.service &>/dev/null; then
+    echo "[*] 未检测到 sing-box.service，创建 systemd 单元..."
+    mkdir -p /etc/systemd/system
+    cat > /etc/systemd/system/sing-box.service << 'SVC'
+[Unit]
+Description=sing-box service
+After=network.target nss-lookup.target
+
+[Service]
+User=sing-box
+StateDirectory=sing-box
+ExecStart=/usr/bin/sing-box -D /var/lib/sing-box -c /etc/sing-box/config.json run
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target
+SVC
+    systemctl daemon-reload
+  fi
+  systemctl enable sing-box 2>/dev/null && systemctl restart sing-box 2>/dev/null && echo "[*] sing-box 已启动并开机自启" || { echo "[!] systemd 启动失败，请手动执行: sing-box run -c $CONFIG_DIR/config.json"; }
   echo "[*] 上游 Hy2 入站: 0.0.0.0:${LISTEN_PORT}  密码 ${PASSWORD}  上下行 ${UP_MBPS} Mbps (无用户名)"
   register_to_relay
 }
