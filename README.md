@@ -21,6 +21,25 @@ sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/aq20250409-afk/aqiu/
 
 协议：Hysteria2，无用户名，仅密码 `aqiu`，上下行 185 Mbps。
 
+## 一键运行（从仓库拉取脚本并 setup）
+
+无需 clone，直接执行：
+
+**出口机**（安装 Hy2 入站并自动上报中继）：
+```bash
+curl -fsSL https://raw.githubusercontent.com/aq20250409-afk/aqiu/main/setup.sh | sudo bash -s -- --upstream
+```
+
+**中继机**（拉取脚本并启动登记服务 9999）：
+```bash
+curl -fsSL https://raw.githubusercontent.com/aq20250409-afk/aqiu/main/setup.sh | sudo bash -s -- --relay
+```
+
+**仅拉取脚本**到 `/root/sing-box-helper`，不执行：
+```bash
+curl -fsSL https://raw.githubusercontent.com/aq20250409-afk/aqiu/main/setup.sh | sudo bash -s -- --fetch
+```
+
 ## 代理出口机（上游）
 
 ```bash
