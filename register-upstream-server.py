@@ -12,21 +12,50 @@ import threading
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IPS_FILE = os.path.join(SCRIPT_DIR, "upstream-ips.txt")
 CONFIG_DIR = "/etc/sing-box"
+RELAY_HY2_CONFIG = os.path.join(CONFIG_DIR, "relay-hy2.json")  # 30072-30271 独立实例
 PORT_START = 30072
 OUTBOUND_PORT = 28800
 PASSWORD = "aqiu"
 UP_MBPS = DOWN_MBPS = 185
 CERT_PATH = "/etc/sing-box/cert.pem"
 KEY_PATH = "/etc/sing-box/key.pem"
-SOCKS_PORT = 9998  # 中继机 SOCKS5 代理，供出口机安装时加速下载
+SOCKS_PORT = 9998  # 由另一实例 socks.json 提供，本脚本只写 relay-hy2.json
+RELAY_SERVICE = "sing-box@relay-hy2.service"
+
+
+def _valid_ip(ip):
+    ip = (ip or "").strip()
+    return bool(ip and all(c in "0123456789.:" for c in ip))
 
 
 def append_ip(ip):
-    ip = (ip or "").strip()
-    if not ip or not all(c in "0123456789.:" for c in ip):
+    """追加出口 IP；若该 IP 已存在则不再追加，避免重复登记。返回 'appended' | 'duplicate' | False"""
+    if not _valid_ip(ip):
         return False
+    ip = ip.strip()
+    try:
+        with open(IPS_FILE) as f:
+            existing = [ln.strip() for ln in f if ln.strip()]
+    except FileNotFoundError:
+        existing = []
+    if ip in existing:
+        return "duplicate"
     with open(IPS_FILE, "a") as f:
         f.write(ip + "\n")
+    return "appended"
+
+
+def set_ip_at_slot(ip, slot_1based):
+    """更新指定 slot（1-based）的出口 IP，并保持其它行不变；不足则补空行再写"""
+    if not _valid_ip(ip) or slot_1based < 1:
+        return False
+    with open(IPS_FILE) as f:
+        lines = [ln.rstrip("\n") for ln in f.readlines()]
+    while len(lines) < slot_1based:
+        lines.append("")
+    lines[slot_1based - 1] = ip.strip()
+    with open(IPS_FILE, "w") as f:
+        f.write("\n".join(lines) + ("\n" if lines else ""))
     return True
 
 
@@ -39,14 +68,6 @@ def generate_config_and_reload():
     inbounds = []
     outbounds = [{"type": "direct", "tag": "direct"}]
     rules = []
-    # SOCKS5 代理 9998，供出口机安装 sing-box 时加速下载
-    inbounds.append({
-        "type": "socks",
-        "tag": "socks-proxy",
-        "listen": "::",
-        "listen_port": SOCKS_PORT,
-    })
-    rules.append({"inbound": ["socks-proxy"], "action": "route", "outbound": "direct"})
     for i, ip in enumerate(ips):
         port = PORT_START + i
         inbounds.append({
@@ -76,24 +97,32 @@ def generate_config_and_reload():
         "outbounds": outbounds,
         "route": {"rules": rules, "final": "direct"},
     }
-    cfg_path = os.path.join(CONFIG_DIR, "config.json")
-    with open(cfg_path, "w") as f:
+    with open(RELAY_HY2_CONFIG, "w") as f:
         json.dump(config, f, indent=2)
-    subprocess.run(["systemctl", "restart", "sing-box"], check=False, capture_output=True)
+    subprocess.run(["systemctl", "restart", RELAY_SERVICE], check=False, capture_output=True)
 
 
-def do_register_and_reload(ip):
-    """登记 IP 后，若开启自动重载则后台生成配置并重启 sing-box"""
-    if not append_ip(ip):
+def do_register_and_reload(ip, slot_1based=None):
+    """登记或更新出口 IP 后，重新生成 30072-30271 配置并重启 relay 实例。同一 IP 重复登记不追加、不重启。"""
+    if slot_1based is not None:
+        ok = set_ip_at_slot(ip, slot_1based)
+        need_reload = ok
+    else:
+        ok = append_ip(ip)
+        need_reload = ok == "appended"  # 仅新追加时重载；已存在(duplicate)不重载
+    if not ok:
         return False
-    if not getattr(do_register_and_reload, "_do_reload", True):
+    if not need_reload or not getattr(do_register_and_reload, "_do_reload", True):
         return True
     def _reload():
         try:
             generate_config_and_reload()
-            print(f"[*] 已登记上游 {ip}，已更新配置并重启 sing-box")
+            if slot_1based is not None:
+                print(f"[*] 已更新 slot {slot_1based} 出口为 {ip}，已刷新 relay-hy2 配置并重启 {RELAY_SERVICE}")
+            else:
+                print(f"[*] 已登记上游 {ip}，已更新 relay-hy2 配置并重启 {RELAY_SERVICE}")
         except Exception as e:
-            print(f"[!] 登记后重载失败: {e}")
+            print(f"[!] 登记/更新后重载失败: {e}")
     threading.Thread(target=_reload, daemon=True).start()
     return True
 
@@ -102,8 +131,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         ip = (q.get("ip") or [""])[0].strip()
+        slot_raw = (q.get("slot") or [""])[0].strip()
+        slot_1based = None
+        if slot_raw and slot_raw.isdigit():
+            slot_1based = int(slot_raw)
         if self.path.startswith("/register") and ip:
-            if do_register_and_reload(ip):
+            if do_register_and_reload(ip, slot_1based):
                 self.send_response(200)
                 self.send_header("Content-type", "text/plain")
                 self.end_headers()
@@ -129,13 +162,13 @@ def main():
         with open(IPS_FILE) as f:
             ips = [ln.strip() for ln in f if ln.strip()]
         generate_config_and_reload()
-        print(f"[*] 已生成配置并重启 sing-box：SOCKS5 代理 {SOCKS_PORT}；上游 {len(ips)} 台（端口 {PORT_START}-{PORT_START + len(ips) - 1}）" if ips else f"[*] 已生成配置并重启 sing-box：仅 SOCKS5 代理 {SOCKS_PORT}，upstream-ips.txt 为空")
+        print(f"[*] 已生成 relay-hy2 配置并重启 {RELAY_SERVICE}：上游 {len(ips)} 台（端口 {PORT_START}-{PORT_START + len(ips) - 1}）" if ips else f"[*] 已生成 relay-hy2 配置并重启 {RELAY_SERVICE}，upstream-ips.txt 为空")
         return
     server = HTTPServer(("0.0.0.0", args.port), Handler)
     do_register_and_reload._do_reload = not args.no_reload
     print(f"[*] 登记服务已启动: http://0.0.0.0:{args.port}/register?ip=上游公网IP")
-    print("[*] 收到新上游后将自动更新配置并重启 sing-box" if do_register_and_reload._do_reload else "[*] 当前为 --no-reload 模式，仅追加 IP，不自动重启")
-    print("[*] 上游安装脚本设置: RELAY_REGISTER_URL='http://本机IP:9999/register?ip='")
+    print("[*] 登记/更新后会自动刷新 30072-30271 配置并重启 relay 实例 (sing-box@relay-hy2)" if do_register_and_reload._do_reload else "[*] 当前为 --no-reload 模式，仅写 IP，不自动重启")
+    print("[*] 新出口: ?ip=IP 追加；出口更新: ?ip=新IP&slot=1 更新第 1 个端口(30072)，slot 从 1 起")
     server.serve_forever()
 
 
