@@ -57,8 +57,8 @@ c = {
   "log": {"level": "info"},
   "dns": {
     "servers": [
-      {"tag": "cn", "address": "223.5.5.5"},
-      {"tag": "cn2", "address": "119.29.29.29"}
+      {"type": "udp", "tag": "cn", "server": "223.5.5.5"},
+      {"type": "udp", "tag": "cn2", "server": "119.29.29.29"}
     ],
     "final": "cn",
     "strategy": "prefer_ipv4"
