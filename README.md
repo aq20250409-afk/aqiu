@@ -2,6 +2,18 @@
 
 Hy2 中继与出口节点一键脚本：中继机从 30072 起按登记顺序对应各出口 28800，端口/密码/带宽默认（28800 / aqiu / 185Mbps）。
 
+## 🚀 一条命令安装
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/aq20250409-afk/aqiu/main/install.sh)"
+```
+
+或使用 wget：
+
+```bash
+sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/aq20250409-afk/aqiu/main/install.sh)"
+```
+
 ## 仓库说明
 
 - **代理出口机**：运行 `install-upstream-hy2.sh`，安装 sing-box + Hy2 入站（28800，密码 aqiu），并可将本机公网 IP 自动上报到中继登记。
@@ -37,6 +49,7 @@ sudo RELAY_REGISTER_URL= ./install-upstream-hy2.sh
 
 | 文件 | 说明 |
 |------|------|
+| `install.sh` | 一键安装脚本（推荐使用） |
 | `install-upstream-hy2.sh` | 出口机一键安装：sing-box + Hy2 入站 28800，可选上报到中继 |
 | `register-upstream-server.py` | 中继机登记服务：接收出口 IP，自动写配置并重启 sing-box |
 | `upstream-ips.txt` | 中继机上游列表（每行一个 IP），供生成配置 |
