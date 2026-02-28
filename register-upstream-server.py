@@ -14,7 +14,7 @@ IPS_FILE = os.path.join(SCRIPT_DIR, "upstream-ips.txt")
 CONFIG_DIR = "/etc/sing-box"
 RELAY_HY2_CONFIG = os.path.join(CONFIG_DIR, "relay-hy2.json")  # 30072-30271 独立实例
 PORT_START = 30072
-OUTBOUND_PORT = 9999
+OUTBOUND_PORT = 9999  # 必须与出口机 install-upstream-hy2.sh 的 LISTEN_PORT 一致，勿改 28800
 PASSWORD = "aqiu"
 UP_MBPS = DOWN_MBPS = 185
 CERT_PATH = "/etc/sing-box/cert.pem"
@@ -99,6 +99,7 @@ def generate_config_and_reload():
     }
     with open(RELAY_HY2_CONFIG, "w") as f:
         json.dump(config, f, indent=2)
+    print(f"[*] 出口机端口: {OUTBOUND_PORT}（中继连上游用）")
     subprocess.run(["systemctl", "restart", RELAY_SERVICE], check=False, capture_output=True)
 
 
