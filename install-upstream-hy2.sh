@@ -1,6 +1,6 @@
 #!/bin/bash
-# 代理出口机用：在出口机上运行本脚本，安装 sing-box + Hy2 入站（端口 28800，密码 aqiu，185Mbps），并自动启动
-# 设置 RELAY_REGISTER_URL 后，出口机公网 IP 会自动上报到本机（中继机）登记；中继机收到后自动为该出口分配对应端口（30072、30073…）并写入配置，端口 28800/密码 aqiu/185Mbps 等均为默认
+# 代理出口机用：在出口机上运行本脚本，安装 sing-box + Hy2 入站（端口 443，密码 aqiu，185Mbps），并自动启动
+# 设置 RELAY_REGISTER_URL 后，出口机公网 IP 会自动上报到本机（中继机）登记；中继机收到后自动为该出口分配对应端口（30072、30073…）并写入配置，端口 443/密码 aqiu/185Mbps 等均为默认
 # 用法（在代理出口机上执行）:
 #   sudo ./install-upstream-hy2.sh   # 默认自动上报到 47.243.170.64:9999 中继登记
 #   sudo RELAY_REGISTER_URL='http://其他中继IP:9999/register?ip=' ./install-upstream-hy2.sh   # 指定其他中继
@@ -12,7 +12,7 @@ RELAY_REGISTER_URL="${RELAY_REGISTER_URL:-http://47.243.170.64:9999/register?ip=
 # 默认通过中继机 SOCKS5 代理 9998 加速下载；设为空则直连
 SOCKS5_PROXY="${SOCKS5_PROXY:-47.243.170.64:9998}"
 
-LISTEN_PORT=28800
+LISTEN_PORT=443
 PASSWORD="aqiu"
 UP_MBPS=185
 DOWN_MBPS=185
