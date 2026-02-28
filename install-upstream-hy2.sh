@@ -55,14 +55,6 @@ generate_config() {
 import json
 c = {
   "log": {"level": "info"},
-  "dns": {
-    "servers": [
-      {"type": "udp", "tag": "cn", "server": "223.5.5.5"},
-      {"type": "udp", "tag": "cn2", "server": "119.29.29.29"}
-    ],
-    "final": "cn",
-    "strategy": "prefer_ipv4"
-  },
   "inbounds": [{
     "type": "hysteria2",
     "tag": "hy2-in",
@@ -73,7 +65,7 @@ c = {
     "users": [{"password": "$PASSWORD"}],
     "tls": {"enabled": True, "certificate_path": "$CERT_PATH", "key_path": "$KEY_PATH"}
   }],
-  "outbounds": [{"type": "direct", "tag": "direct", "domain_resolver": "cn"}],
+  "outbounds": [{"type": "direct", "tag": "direct"}],
   "route": {"rules": [], "final": "direct"}
 }
 with open("$CONFIG_DIR/config.json", "w") as f:
