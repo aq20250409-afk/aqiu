@@ -18,6 +18,7 @@ PASSWORD = "aqiu"
 UP_MBPS = DOWN_MBPS = 185
 CERT_PATH = "/etc/sing-box/cert.pem"
 KEY_PATH = "/etc/sing-box/key.pem"
+SOCKS_PORT = 9998  # 中继机 SOCKS5 代理，供出口机安装时加速下载
 
 
 def append_ip(ip):
@@ -30,16 +31,22 @@ def append_ip(ip):
 
 
 def generate_config_and_reload():
+    import json
     if not os.path.isfile(IPS_FILE):
-        return
+        open(IPS_FILE, "a").close()
     with open(IPS_FILE) as f:
         ips = [ln.strip() for ln in f if ln.strip()]
-    if not ips:
-        return
-    import json
     inbounds = []
-    outbounds = []
+    outbounds = [{"type": "direct", "tag": "direct"}]
     rules = []
+    # SOCKS5 代理 9998，供出口机安装 sing-box 时加速下载
+    inbounds.append({
+        "type": "socks",
+        "tag": "socks-proxy",
+        "listen": "::",
+        "listen_port": SOCKS_PORT,
+    })
+    rules.append({"inbound": ["socks-proxy"], "action": "route", "outbound": "direct"})
     for i, ip in enumerate(ips):
         port = PORT_START + i
         inbounds.append({
@@ -52,7 +59,7 @@ def generate_config_and_reload():
             "users": [{"password": PASSWORD}],
             "tls": {"enabled": True, "certificate_path": CERT_PATH, "key_path": KEY_PATH},
         })
-        outbounds.append({
+        outbounds.insert(-1, {
             "type": "hysteria2",
             "tag": f"hy2-out-{port}",
             "server": ip,
@@ -63,7 +70,6 @@ def generate_config_and_reload():
             "tls": {"enabled": True, "server_name": ip, "insecure": True},
         })
         rules.append({"inbound": [f"hy2-in-{port}"], "action": "route", "outbound": f"hy2-out-{port}"})
-    outbounds.append({"type": "direct", "tag": "direct"})
     config = {
         "log": {"level": "info"},
         "inbounds": inbounds,
@@ -122,11 +128,8 @@ def main():
     if args.generate_only:
         with open(IPS_FILE) as f:
             ips = [ln.strip() for ln in f if ln.strip()]
-        if not ips:
-            print("[!] upstream-ips.txt 为空，未做变更")
-            return
         generate_config_and_reload()
-        print(f"[*] 已按 upstream-ips.txt 生成配置（{len(ips)} 台上游，端口 {PORT_START}-{PORT_START + len(ips) - 1}）并重启 sing-box")
+        print(f"[*] 已生成配置并重启 sing-box：SOCKS5 代理 {SOCKS_PORT}；上游 {len(ips)} 台（端口 {PORT_START}-{PORT_START + len(ips) - 1}）" if ips else f"[*] 已生成配置并重启 sing-box：仅 SOCKS5 代理 {SOCKS_PORT}，upstream-ips.txt 为空")
         return
     server = HTTPServer(("0.0.0.0", args.port), Handler)
     do_register_and_reload._do_reload = not args.no_reload

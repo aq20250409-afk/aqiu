@@ -9,6 +9,8 @@ set -e
 
 # 默认中继登记地址（本机 47.243.170.64）；可通过环境变量 RELAY_REGISTER_URL 覆盖
 RELAY_REGISTER_URL="${RELAY_REGISTER_URL:-http://47.243.170.64:9999/register?ip=}"
+# 默认通过中继机 SOCKS5 代理 9998 加速下载；设为空则直连
+SOCKS5_PROXY="${SOCKS5_PROXY:-47.243.170.64:9998}"
 
 LISTEN_PORT=28800
 PASSWORD="aqiu"
@@ -24,7 +26,13 @@ install_singbox() {
     return 0
   fi
   echo "[*] 正在安装 sing-box..."
-  curl -fsSL https://sing-box.app/install.sh | sh
+  if [[ -n "$SOCKS5_PROXY" ]]; then
+    export all_proxy="socks5h://${SOCKS5_PROXY}"
+    echo "[*] 使用中继 SOCKS5 代理加速: ${SOCKS5_PROXY}"
+    curl --socks5-hostname "$SOCKS5_PROXY" -fsSL https://sing-box.app/install.sh | env all_proxy="socks5h://${SOCKS5_PROXY}" sh
+  else
+    curl -fsSL https://sing-box.app/install.sh | sh
+  fi
   echo "[*] sing-box 安装完成"
 }
 
