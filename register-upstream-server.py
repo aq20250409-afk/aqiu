@@ -22,6 +22,9 @@ KEY_PATH = "/etc/sing-box/key.pem"
 SOCKS_PORT = 9998  # 由另一实例 socks.json 提供，本脚本只写 relay-hy2.json
 RELAY_SERVICE = "sing-box@relay-hy2.service"
 
+# 允许通过 /files/xxx 下载的脚本（出口机从中继拉取用）
+ALLOWED_FILES = {"setup.sh", "install-upstream-hy2.sh", "register-upstream-server.py", "upstream-ips.txt", "generate-config.py", "install-singbox-hy2.sh"}
+
 
 def _valid_ip(ip):
     ip = (ip or "").strip()
@@ -130,6 +133,27 @@ def do_register_and_reload(ip, slot_1based=None):
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        path = urllib.parse.urlparse(self.path).path
+        # /files/<filename> 从中继拉取脚本（出口机用）
+        if path.startswith("/files/"):
+            name = path[7:].strip("/").split("/")[0]
+            if name in ALLOWED_FILES:
+                fp = os.path.join(SCRIPT_DIR, name)
+                if os.path.isfile(fp):
+                    try:
+                        with open(fp, "rb") as f:
+                            body = f.read()
+                        self.send_response(200)
+                        self.send_header("Content-type", "application/octet-stream")
+                        self.send_header("Content-Length", len(body))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                    except Exception:
+                        pass
+            self.send_response(404)
+            self.end_headers()
+            return
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         ip = (q.get("ip") or [""])[0].strip()
         slot_raw = (q.get("slot") or [""])[0].strip()
